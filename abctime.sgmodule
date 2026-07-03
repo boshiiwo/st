@@ -10,7 +10,8 @@
 [Script]
 abctime_member_info = type=http-response,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/info,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,timeout=10
 abctime_expire_time = type=http-response,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/get-user-expire-time,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,timeout=10
-abctime_book_detail = type=http-response,pattern=^https?:\/\/api\.abctime\.com\/v6\/book\/detail,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,timeout=10
+abctime_book_detail_req = type=http-request,pattern=^https?:\/\/api\.abctime\.com\/v6\/book\/detail,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,timeout=10
+abctime_book_detail_res = type=http-response,pattern=^https?:\/\/api\.abctime\.com\/v6\/book\/detail,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,timeout=10
 
 [MITM]
 hostname = %APPEND% api.abctime.com
