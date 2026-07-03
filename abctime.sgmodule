@@ -2,19 +2,19 @@
 #!desc=ABC Time 破解VIP，拦截广告与教师信息。包含本地书籍数据修改。已绑定云端JS脚本。
 #!author=Jesse
 
-[URL Rewrite]
+[Rule]
 # 拦截教师信息接口
-^https?:\/\/api\.abctime\.com\/v6\/reading_grow\/v1\/contact\/tch-info-by-uid reject
+URL-REGEX,^https?:\/\/api\.abctime\.com\/v6\/reading_grow\/v1\/contact\/tch-info-by-uid,REJECT
 # 拦截获取0元试用接口
-^https?:\/\/api\.abctime\.com\/v2\/pay\/order\/get-0-trial reject
+URL-REGEX,^https?:\/\/api\.abctime\.com\/v2\/pay\/order\/get-0-trial,REJECT
 # 拦截弹窗列表接口
-^https?:\/\/api\.abctime\.com\/v2\/popup\/popup\/list reject
+URL-REGEX,^https?:\/\/api\.abctime\.com\/v2\/popup\/popup\/list,REJECT
 
 [Script]
 # 拦截并返回会员信息
-abctime_info = type=http-request,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/info,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,requires-body=1
+abctime_info = type=http-request,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/info,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js
 # 拦截并返回过期时间
-abctime_expire = type=http-request,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/get-user-expire-time,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,requires-body=1
+abctime_expire = type=http-request,pattern=^https?:\/\/api\.abctime\.com\/v2\/member\/member\/get-user-expire-time,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js
 # 拦截修改绘本详情
 abctime_book = type=http-response,pattern=^https?:\/\/api\.abctime\.com\/v6\/book\/detail,script-path=https://raw.githubusercontent.com/boshiiwo/st/refs/heads/main/abctime.js,requires-body=1
 
