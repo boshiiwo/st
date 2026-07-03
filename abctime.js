@@ -2885,6 +2885,9 @@ const SIGN_CHECK_MAP = {
   "30263": "+2hN9sfY/dn55naWe6HXxA==",
   "30264": "z48T6HRc3RpLx36BmkOTFA=="
 };
+const BOOK_DETAIL_PATH = "/v6/book/detail";
+const BOOK_ID_HEADER = "X-Abctime-Book-Id";
+const STORE_LAST_KEY = "abctime.bookDetail.last";
 
 function hasPath(path) {
   return url.indexOf(path) !== -1;
@@ -2894,6 +2897,8 @@ function cloneHeaders(headers) {
   const result = Object.assign({}, headers || {});
   delete result["Content-Length"];
   delete result["content-length"];
+  delete result["Content-Encoding"];
+  delete result["content-encoding"];
   result["Content-Type"] = "application/json; charset=utf-8";
   return result;
 }
@@ -2913,8 +2918,71 @@ function finishMock(item) {
   }
 }
 
-function readBookId() {
-  const body = ($request && $request.body) ? $request.body : "";
+function headerValue(headers, name) {
+  const lowerName = name.toLowerCase();
+  for (const key of Object.keys(headers || {})) {
+    if (key.toLowerCase() === lowerName) {
+      return headers[key];
+    }
+  }
+  return "";
+}
+
+function withHeader(headers, name, value) {
+  const result = Object.assign({}, headers || {});
+  result[name] = value;
+  return result;
+}
+
+function hashText(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function storeKey() {
+  const headers = ($request && $request.headers) ? $request.headers : {};
+  const uid = headerValue(headers, "Panda-Uid");
+  const token = headerValue(headers, "Panda-Token");
+  return "abctime.bookDetail." + hashText(url + "|" + uid + "|" + token);
+}
+
+function storeRead(key) {
+  try {
+    if (typeof $persistentStore !== "undefined" && $persistentStore.read) {
+      return $persistentStore.read(key);
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof $prefs !== "undefined" && $prefs.valueForKey) {
+      return $prefs.valueForKey(key);
+    }
+  } catch (e) {}
+
+  return "";
+}
+
+function storeWrite(key, value) {
+  try {
+    if (typeof $persistentStore !== "undefined" && $persistentStore.write) {
+      return $persistentStore.write(value, key);
+    }
+  } catch (e) {}
+
+  try {
+    if (typeof $prefs !== "undefined" && $prefs.setValueForKey) {
+      return $prefs.setValueForKey(value, key);
+    }
+  } catch (e) {}
+
+  return false;
+}
+
+function readBookIdFromBody(body) {
   if (!body) {
     return "";
   }
@@ -2925,9 +2993,59 @@ function readBookId() {
       ? String(parsed.book_id)
       : "";
   } catch (e) {
-    const match = body.match(/(?:^|[&?])book_id=([^&]+)/);
+    const text = String(body);
+    const match = text.match(/(?:^|[&?])book_id=([^&]+)/);
     return match ? decodeURIComponent(match[1]) : "";
   }
+}
+
+function readBookId() {
+  const body = ($request && $request.body) ? $request.body : "";
+  return readBookIdFromBody(body);
+}
+
+function readStoredBookRecord() {
+  const raw = storeRead(storeKey()) || storeRead(STORE_LAST_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveBookRecord(bookId, signCheck) {
+  const record = JSON.stringify({
+    bookId,
+    signCheck,
+    time: Date.now()
+  });
+  storeWrite(storeKey(), record);
+  storeWrite(STORE_LAST_KEY, record);
+}
+
+function readBookContext() {
+  const bodyBookId = readBookId();
+  const headerBookId = headerValue($request.headers || {}, BOOK_ID_HEADER);
+  const stored = readStoredBookRecord();
+  const bookId = bodyBookId || headerBookId || stored.bookId || "";
+  const signCheck = SIGN_CHECK_MAP[bookId] || (stored.bookId === bookId ? stored.signCheck : "");
+  return { bookId, signCheck };
+}
+
+function captureBookDetailRequest() {
+  const bookId = readBookId();
+  if (!bookId) {
+    $done({});
+    return;
+  }
+
+  const signCheck = SIGN_CHECK_MAP[bookId] || "";
+  saveBookRecord(bookId, signCheck);
+  $done({ headers: withHeader($request.headers || {}, BOOK_ID_HEADER, bookId) });
 }
 
 function updateSignCheck(value, signCheck) {
@@ -2952,20 +3070,24 @@ if (hasPath("/v2/member/member/info")) {
   finishMock(MOCK_RESPONSES["/v2/member/member/info"]);
 } else if (hasPath("/v2/member/member/get-user-expire-time")) {
   finishMock(MOCK_RESPONSES["/v2/member/member/get-user-expire-time"]);
-} else if (hasPath("/v6/book/detail")) {
+} else if (hasPath(BOOK_DETAIL_PATH)) {
   try {
-    const bookId = readBookId();
-    const signCheck = SIGN_CHECK_MAP[bookId];
-
-    if (!bookId || !signCheck || typeof $response === "undefined" || !$response.body) {
-      $done({});
+    if (typeof $response === "undefined") {
+      captureBookDetailRequest();
     } else {
-      const body = JSON.parse($response.body);
-      updateSignCheck(body, signCheck);
-      $done({
-        headers: cloneHeaders($response.headers),
-        body: JSON.stringify(body)
-      });
+      const context = readBookContext();
+
+      if (!context.bookId || !context.signCheck || !$response.body) {
+        console.log("abctime /v6/book/detail missing book_id or signCheck");
+        $done({});
+      } else {
+        const body = JSON.parse($response.body);
+        updateSignCheck(body, context.signCheck);
+        $done({
+          headers: cloneHeaders($response.headers),
+          body: JSON.stringify(body)
+        });
+      }
     }
   } catch (e) {
     console.log("abctime /v6/book/detail error: " + e);
